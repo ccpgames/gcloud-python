@@ -123,68 +123,6 @@ class Test__ensure_tuple_or_list(unittest2.TestCase):
             self._callFUT('ARGNAME', invalid_tuple_or_list)
 
 
-class Test__app_engine_id(unittest2.TestCase):
-
-    def _callFUT(self):
-        from gcloud._helpers import _app_engine_id
-        return _app_engine_id()
-
-    def test_no_value(self):
-        from gcloud._testing import _Monkey
-        from gcloud import _helpers
-
-        with _Monkey(_helpers, app_identity=None):
-            dataset_id = self._callFUT()
-            self.assertEqual(dataset_id, None)
-
-    def test_value_set(self):
-        from gcloud._testing import _Monkey
-        from gcloud import _helpers
-
-        APP_ENGINE_ID = object()
-        APP_IDENTITY = _AppIdentity(APP_ENGINE_ID)
-        with _Monkey(_helpers, app_identity=APP_IDENTITY):
-            dataset_id = self._callFUT()
-            self.assertEqual(dataset_id, APP_ENGINE_ID)
-
-
-class Test__compute_engine_id(unittest2.TestCase):
-
-    def _callFUT(self):
-        from gcloud._helpers import _compute_engine_id
-        return _compute_engine_id()
-
-    def _monkeyConnection(self, connection):
-        from gcloud._testing import _Monkey
-        from gcloud import _helpers
-
-        def _factory(host, timeout):
-            connection.host = host
-            connection.timeout = timeout
-            return connection
-
-        return _Monkey(_helpers, HTTPConnection=_factory)
-
-    def test_bad_status(self):
-        connection = _HTTPConnection(404, None)
-        with self._monkeyConnection(connection):
-            dataset_id = self._callFUT()
-            self.assertEqual(dataset_id, None)
-
-    def test_success(self):
-        COMPUTE_ENGINE_ID = object()
-        connection = _HTTPConnection(200, COMPUTE_ENGINE_ID)
-        with self._monkeyConnection(connection):
-            dataset_id = self._callFUT()
-            self.assertEqual(dataset_id, COMPUTE_ENGINE_ID)
-
-    def test_socket_raises(self):
-        connection = _TimeoutHTTPConnection()
-        with self._monkeyConnection(connection):
-            dataset_id = self._callFUT()
-            self.assertEqual(dataset_id, None)
-
-
 class Test__get_production_project(unittest2.TestCase):
 
     def _callFUT(self):
@@ -229,18 +167,8 @@ class Test__determine_default_project(unittest2.TestCase):
             _callers.append('prod_mock')
             return prod
 
-        def gae_mock():
-            _callers.append('gae_mock')
-            return gae
-
-        def gce_mock():
-            _callers.append('gce_mock')
-            return gce
-
         patched_methods = {
             '_get_production_project': prod_mock,
-            '_app_engine_id': gae_mock,
-            '_compute_engine_id': gce_mock,
         }
 
         with _Monkey(_helpers, **patched_methods):
@@ -251,7 +179,7 @@ class Test__determine_default_project(unittest2.TestCase):
     def test_no_value(self):
         project, callers = self._determine_default_helper()
         self.assertEqual(project, None)
-        self.assertEqual(callers, ['prod_mock', 'gae_mock', 'gce_mock'])
+        self.assertEqual(callers, ['prod_mock'])
 
     def test_explicit(self):
         PROJECT = object()
@@ -264,18 +192,6 @@ class Test__determine_default_project(unittest2.TestCase):
         project, callers = self._determine_default_helper(prod=PROJECT)
         self.assertEqual(project, PROJECT)
         self.assertEqual(callers, ['prod_mock'])
-
-    def test_gae(self):
-        PROJECT = object()
-        project, callers = self._determine_default_helper(gae=PROJECT)
-        self.assertEqual(project, PROJECT)
-        self.assertEqual(callers, ['prod_mock', 'gae_mock'])
-
-    def test_gce(self):
-        PROJECT = object()
-        project, callers = self._determine_default_helper(gce=PROJECT)
-        self.assertEqual(project, PROJECT)
-        self.assertEqual(callers, ['prod_mock', 'gae_mock', 'gce_mock'])
 
 
 class Test__millis(unittest2.TestCase):
@@ -570,48 +486,6 @@ class Test__to_bytes(unittest2.TestCase):
     def test_with_nonstring_type(self):
         value = object()
         self.assertRaises(TypeError, self._callFUT, value)
-
-
-class Test__pb_timestamp_to_datetime(unittest2.TestCase):
-
-    def _callFUT(self, timestamp):
-        from gcloud._helpers import _pb_timestamp_to_datetime
-        return _pb_timestamp_to_datetime(timestamp)
-
-    def test_it(self):
-        import datetime
-        from google.protobuf.timestamp_pb2 import Timestamp
-        from gcloud._helpers import UTC
-
-        # Epoch is midnight on January 1, 1970 ...
-        dt_stamp = datetime.datetime(1970, month=1, day=1, hour=0,
-                                     minute=1, second=1, microsecond=1234,
-                                     tzinfo=UTC)
-        # ... so 1 minute and 1 second after is 61 seconds and 1234
-        # microseconds is 1234000 nanoseconds.
-        timestamp = Timestamp(seconds=61, nanos=1234000)
-        self.assertEqual(self._callFUT(timestamp), dt_stamp)
-
-
-class Test__datetime_to_pb_timestamp(unittest2.TestCase):
-
-    def _callFUT(self, when):
-        from gcloud._helpers import _datetime_to_pb_timestamp
-        return _datetime_to_pb_timestamp(when)
-
-    def test_it(self):
-        import datetime
-        from google.protobuf.timestamp_pb2 import Timestamp
-        from gcloud._helpers import UTC
-
-        # Epoch is midnight on January 1, 1970 ...
-        dt_stamp = datetime.datetime(1970, month=1, day=1, hour=0,
-                                     minute=1, second=1, microsecond=1234,
-                                     tzinfo=UTC)
-        # ... so 1 minute and 1 second after is 61 seconds and 1234
-        # microseconds is 1234000 nanoseconds.
-        timestamp = Timestamp(seconds=61, nanos=1234000)
-        self.assertEqual(self._callFUT(dt_stamp), timestamp)
 
 
 class Test__name_from_project_path(unittest2.TestCase):
